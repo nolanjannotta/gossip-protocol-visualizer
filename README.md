@@ -1,1 +1,1 @@
-An exploration and visualization of gossip protocols. 
+An exploration and visualization of gossip protocols. (not working yet though)
