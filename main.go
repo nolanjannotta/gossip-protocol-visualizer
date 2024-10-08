@@ -1,8 +1,5 @@
 package main
 
-// A simple program that opens the alternate screen buffer then counts down
-// from 5 and then exits.
-
 import (
 	"fmt"
 	"log"
@@ -14,24 +11,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type Node struct {
-	state      string
-	knownNodes []int
-	x          int
-	y          int
-}
-
-type Simulation struct {
-	nodes        []Node
-	nodeMap      map[[2]int]*Node  // try this
-	pixelMap     map[[2]int]string // try this
-	isLoaded     bool
-	height       int
-	width        int
-	startingNode int
-	successRate  int
-	sendsPerNode int
-}
+const (
+	start = iota
+	nodeAmountInput
+	successRateInput
+	sendsPerNodeInput
+	chooseStartingNode
+	simulationRunning
+)
 
 type model struct {
 	border         lipgloss.Style
@@ -47,7 +34,11 @@ type model struct {
 	directionStyle lipgloss.Style
 	screenOutput   string
 	simulation     Simulation
+
+	hello string
 }
+
+var program = tea.Program{}
 
 func main() {
 
@@ -62,6 +53,7 @@ func main() {
 			"> simulation loaded.\nClick on a starting node",
 			"> simulation is running"},
 		programStep: 0,
+		// hello:       "hello",
 	}
 
 	m.inputStyle = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Align(lipgloss.Left).Width(25).Height(1).MarginLeft(1)
@@ -74,10 +66,17 @@ func main() {
 	m.inputs[1].Placeholder = "success rate %"
 	m.inputs[2].Placeholder = "sends per node"
 
+	// m.simulation.startingNode = -1
+
 	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	program = *p
+	// m.p = p
+
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
+
 }
 
 func (m model) Init() tea.Cmd {
@@ -85,10 +84,20 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
-
 	var cmds []tea.Cmd
 
 	switch msg := message.(type) {
+
+	case RelayMsg:
+		// fmt.Println("msg received in program")
+		// key := [2]int{msg.x, msg.y}
+
+		for _, coord := range msg.coords {
+			m.simulation.pixelMap[coord] = green(m.simulation.pixelMap[coord])
+		}
+
+		m.drawPixels()
+		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -96,12 +105,12 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "enter", "ctrl+z":
-			if m.programStep >= 0 && m.programStep <= len(m.inputs) {
+			if m.programStep >= start && m.programStep <= len(m.inputs) {
 				if msg.String() == "ctrl+z" {
 					m.programStep--
 				}
 			}
-			if msg.String() == "enter" && m.programStep < 5 {
+			if msg.String() == "enter" && m.programStep < simulationRunning {
 				m.programStep++
 			}
 			cmds = append(cmds, m.updateProgramStep())
@@ -112,7 +121,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		// the node screen start at (2,2), so we can subtract 2 from each coordinate
 		// to get the relative position in the screen... i think...
 
-		if m.programStep == 4 && msg.String() == "left press" && m.simulation.startingNode == 0 {
+		if m.programStep == chooseStartingNode && msg.String() == "left press" && len(m.simulation.completedNodes) == 0 {
 
 			// fmt.Println(msg.X, msg.Y)
 			nodeX, nodeY := msg.X-2, msg.Y-3
@@ -120,61 +129,52 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			key := [2]int{nodeX, nodeY}
 
 			char := m.simulation.pixelMap[key]
-			if char == "⬤" {
-				m.simulation.pixelMap[key] = green(char)
 
+			if char != "⬤" {
+				return m, nil
 			}
 
-			fmt.Println(nodeX, nodeY)
-			// find the starting node
-			for id, node := range m.simulation.nodes {
-				fmt.Println("node", node)
-				if node.x == nodeX && node.y == nodeY {
-					m.simulation.startingNode = id
+			m.simulation.pixelMap[key] = green(char)
+			m.simulation.completedNodes = append(m.simulation.completedNodes, m.simulation.nodeMap[key])
 
-				}
-			}
-
+			// m.simulation.startingNode = m.simulation.nodeMap[key]
 			m.drawPixels()
 
 		}
-
-		// return m, tea.Printf("(X: %d, Y: %d) %s", msg.X, msg.Y, tea.MouseEvent(msg))
 
 	case tea.WindowSizeMsg:
 
 		m.handleResize(msg)
 
 	}
-	// fmt.Println(m.programStep)
+	// this handles the curser blinking
 	cmds = append(cmds, m.updateInputs(message))
 	return m, tea.Batch(cmds...)
 }
 
 func (m *model) updateInputs(message tea.Msg) tea.Cmd {
+	cmds := make([]tea.Cmd, len(m.inputs))
 
 	switch msg := message.(type) {
 	case tea.KeyMsg:
 		_, err := strconv.Atoi(msg.String())
 		if err != nil && msg.String() != "backspace" {
-			return nil
+			return tea.Batch(cmds...)
 		}
 
 	}
 
 	nodes, _ := strconv.Atoi(m.inputs[0].Value())
 	success, _ := strconv.Atoi(m.inputs[1].Value())
-	sends, _ := strconv.Atoi(m.inputs[2].Value())
+	spread, _ := strconv.Atoi(m.inputs[2].Value())
 
 	if success > 100 {
 		m.inputs[1].SetValue("100")
 		success = 100
 	}
-
-	m.simulation.nodes = make([]Node, nodes)
+	m.simulation.numNodes = nodes
 	m.simulation.successRate = success
-	m.simulation.sendsPerNode = sends
-	cmds := make([]tea.Cmd, len(m.inputs))
+	m.simulation.spread = spread
 
 	for i := range m.inputs {
 
@@ -195,7 +195,7 @@ func (m *model) updateProgramStep() tea.Cmd {
 		m.inputs[i].Blur()
 
 	}
-	if m.programStep == 4 {
+	if m.programStep == chooseStartingNode {
 		m.inputs[2].Blur()
 		m.loadBlankScreen()
 		m.loadNodes()
@@ -203,10 +203,17 @@ func (m *model) updateProgramStep() tea.Cmd {
 		m.paramsDisplay = fmt.Sprint(
 			"    nodes:", len(m.simulation.nodes),
 			"    success rate: ", m.simulation.successRate, "%",
-			"    sends per node: ", m.simulation.sendsPerNode)
+			"    sends per node: ", m.simulation.spread)
 		return cmd
 	}
-	if m.programStep == 5 {
+	if m.programStep == simulationRunning {
+
+		go m.simulation.run(&program)
+
+		// node := <-c
+
+		// m.simulation.pixelMap[[2]int{node.x, node.y}] = green(m.simulation.pixelMap[[2]int{node.x, node.y}])
+		// m.drawPixels()
 		return cmd
 	}
 
@@ -215,6 +222,7 @@ func (m *model) updateProgramStep() tea.Cmd {
 
 func (m *model) reset() tea.Cmd {
 	var cmd tea.Cmd
+
 	m.programStep = 1
 	m.screenOutput = ""
 	m.simulation = Simulation{}
@@ -235,6 +243,12 @@ func (m *model) reset() tea.Cmd {
 
 }
 
+// func (m *model) changePixel(x, y int) {
+// 	// index := y*m.simulation.width + x
+// 	m.screenOutput = strings.Replace(m.screenOutput, "⬤", green("⬤"), 2)
+// 	// m.screenOutput[index] = green(m.screenOutput[index])
+// }
+
 func (m *model) drawPixels() {
 	m.screenOutput = ""
 
@@ -252,18 +266,21 @@ func (m *model) drawPixels() {
 
 func (m *model) loadBlankScreen() {
 	m.simulation.pixelMap = make(map[[2]int]string)
+
 	m.simulation.height = m.nodesStyle.GetHeight()
 	m.simulation.width = m.nodesStyle.GetWidth()
 
 	for x := 0; x < m.simulation.width; x++ {
 		for y := 0; y < m.simulation.height; y++ {
-			m.simulation.pixelMap[[2]int{x, y}] = "⚬"
+			m.simulation.pixelMap[[2]int{x, y}] = " "
 		}
 	}
 
 }
 
 func (m *model) loadNodes() {
+	m.simulation.nodes = make([]Node, m.simulation.numNodes)
+	m.simulation.nodeMap = make(map[[2]int]int)
 	if m.simulation.isLoaded {
 		return
 	}
@@ -271,15 +288,33 @@ func (m *model) loadNodes() {
 	for i := range m.simulation.nodes {
 		x := rand.Int() % (m.simulation.width - 1)
 		y := rand.Int() % (m.simulation.height)
-		m.simulation.nodes[i] = Node{
-			state:      "state",
-			knownNodes: make([]int, len(m.simulation.nodes)-1),
-			x:          x,
-			y:          y,
+		node := Node{
+			state: "state",
+			// totalNodes:  len(m.simulation.nodes),
+			x:           x,
+			y:           y,
+			id:          i,
+			successRate: m.simulation.successRate,
+			spread:      m.simulation.spread,
+			// otherNodes:  make([]*Node, len(m.simulation.nodes)),
+			// otherNodes:
 		}
 		m.simulation.pixelMap[[2]int{x, y}] = "⬤"
+		m.simulation.nodes[i] = node
+		m.simulation.nodeMap[[2]int{x, y}] = i
 
 	}
+
+	// theres got to be a better way to do this
+
+	// pointerToNodes := &m.simulation.nodes
+	// for i := range m.simulation.nodes {
+	// 	// nodes := make([]Node, len(m.simulation.nodes))
+	// 	// copy(nodes, m.simulation.nodes)
+	// 	m.simulation.nodes[i].otherNodes = pointerToNodes
+
+	// }
+	// fmt.Println(m.simulation.nodes[2])
 
 	m.simulation.isLoaded = true
 }
@@ -316,8 +351,8 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) {
 
 	m.directionStyle = lipgloss.NewStyle().
 		Width(m.width / 2).
-		MarginLeft(4).
-		Background(lipgloss.Color("34"))
+		MarginLeft(4)
+	// Background(lipgloss.Color("34"))
 
 	// m.subcontainer = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Width(m.width - 5).Height(m.height - 4).Align(lipgloss.Center).Background(lipgloss.Color("123"))
 
@@ -332,8 +367,6 @@ func green(letter string) string {
 
 func (m model) View() string {
 
-	// fmt.Println("rendered")
-
 	ctrl := lipgloss.JoinHorizontal(lipgloss.Center,
 		m.inputStyle.Render(m.inputs[0].View()),
 		m.inputStyle.Render(m.inputs[1].View()),
@@ -345,5 +378,6 @@ func (m model) View() string {
 		m.nodesStyle.Render(m.screenOutput),
 		m.controls.Render(ctrl),
 	)
+	// return ""
 
 }
