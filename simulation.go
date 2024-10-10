@@ -1,8 +1,8 @@
 package main
 
 import (
+	"cmp"
 	"math"
-	"math/rand"
 	"slices"
 	"time"
 
@@ -10,12 +10,11 @@ import (
 )
 
 type Node struct {
-	state                         string
-	id, x, y, successRate, spread int
+	x, y int
 }
 
 type Simulation struct {
-	numNodes       int
+	nodeCount      int
 	nodes          []Node            //index is the id
 	completedNodes []int             //list of ids that are completed
 	nodeMap        map[[2]int]int    // x,y mapped to node id
@@ -32,71 +31,85 @@ type RelayMsg struct {
 	coords [][2]int
 }
 
-// func (n *Node) sendMsg(message string) bool {
-// 	if n.state == message {
-// 		return false
-// 	}
-// 	n.state = message
-// 	return true
-
-// }
+type SimulationStatus struct {
+	done      bool
+	iteration int
+	time      time.Duration
+}
 
 func (s *Simulation) run(p *tea.Program) {
+
 	if len(s.completedNodes) == 0 {
 		return
 	}
 
+	start := time.Now()
+
 	var coords [][2]int
+	var nodeIds []int
+	var currentIteration []int
+	var lastIteration []int
 
-	// 1. cycle through all completed nodes (nodes that received a message)
-	// 2. for each completed node, choose 3 (s.spread) more to send messages to
-	// 3. if successful, add those nodes to completed nodes list
-	// 4. update tea.Program to update the UI
-	// 5. continue until all nodes are complete
+	for i := range s.nodes {
+		nodeIds = append(nodeIds, i)
+	}
 
-	for {
+	lastIteration = s.completedNodes
 
-		for _, nodeId := range s.completedNodes {
+	done := false
+	var iterations int
+	for !done {
+		// p.Send(SimulationStatus{iteration: iterations})
 
-			// d=√((x_2-x_1)²+(y_2-y_1)²)
-			distances := []float64{}
-			for _, node := range s.nodes {
+		for _, nodeId := range lastIteration {
 
-				x1, y1 := s.nodes[nodeId].x, s.nodes[nodeId].y
-				x2, y2 := node.x, node.y
-				if x1 == x2 && y1 == y2 {
-					continue
-				}
-				distance := math.Sqrt(math.Pow(float64(x2-x1), 2) + math.Pow(float64(y2-y1), 2))
-				distances = append(distances, distance)
+			slices.SortFunc(nodeIds,
+				func(a, b int) int {
+					x, y := s.nodes[nodeId].x, s.nodes[nodeId].y
 
-			}
-			slices.Sort(distances)
+					x1, y1 := s.nodes[a].x, s.nodes[a].y
+					x2, y2 := s.nodes[b].x, s.nodes[b].y
 
+					distance1 := math.Sqrt(math.Pow(float64(x1-x), 2) + math.Pow(float64(y1-y), 2))
+					distance2 := math.Sqrt(math.Pow(float64(x2-x), 2) + math.Pow(float64(y2-y), 2))
+
+					return cmp.Compare(distance1, distance2)
+
+				})
+			var recipient int
 			for range s.spread {
 				if len(s.completedNodes) >= len(s.nodes) {
+					done = true
 					break
 				}
 
-				recipient := rand.Int() % len(s.nodes)
-
-				for slices.Contains(s.completedNodes, recipient) {
-					// if recipient is already in the completed list, find a different one
-					recipient = rand.Int() % len(s.nodes)
+				for i, id := range nodeIds {
+					if !slices.Contains(s.completedNodes, id) {
+						recipient = id
+						nodeIds = append(nodeIds[:i], nodeIds[i+1:]...)
+						break
+					}
 				}
+
 				coord := [2]int{s.nodes[recipient].x, s.nodes[recipient].y}
 				coords = append(coords, coord)
+				currentIteration = append(currentIteration, recipient)
 				s.completedNodes = append(s.completedNodes, recipient)
 
 			}
 
 		}
-		time.Sleep(time.Second)
-		p.Send(RelayMsg{status: true, coords: coords})
-		coords = nil
 
-		// fmt.Println(len(s.completedNodes))
+		lastIteration = currentIteration
+		currentIteration = []int{}
+		iterations++
+		p.Send(RelayMsg{status: true, coords: coords})
+		coords = [][2]int{}
 
 	}
+	// fmt.Println(iterations)
+	elapsed := time.Since(start)
+	p.Send(SimulationStatus{done: true, iteration: iterations, time: elapsed})
+	// fmt.Println("done")
 
 }
