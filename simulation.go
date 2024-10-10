@@ -43,8 +43,6 @@ func (s *Simulation) run(p *tea.Program) {
 		return
 	}
 
-	start := time.Now()
-
 	var coords [][2]int
 	var nodeIds []int
 	var currentIteration []int
@@ -58,8 +56,8 @@ func (s *Simulation) run(p *tea.Program) {
 
 	done := false
 	var iterations int
+	start := time.Now()
 	for !done {
-		// p.Send(SimulationStatus{iteration: iterations})
 
 		for _, nodeId := range lastIteration {
 
@@ -94,12 +92,12 @@ func (s *Simulation) run(p *tea.Program) {
 				coord := [2]int{s.nodes[recipient].x, s.nodes[recipient].y}
 				coords = append(coords, coord)
 				currentIteration = append(currentIteration, recipient)
-				s.completedNodes = append(s.completedNodes, recipient)
 
 			}
 
 		}
 
+		s.completedNodes = append(s.completedNodes, currentIteration...)
 		lastIteration = currentIteration
 		currentIteration = []int{}
 		iterations++
@@ -107,9 +105,7 @@ func (s *Simulation) run(p *tea.Program) {
 		coords = [][2]int{}
 
 	}
-	// fmt.Println(iterations)
 	elapsed := time.Since(start)
 	p.Send(SimulationStatus{done: true, iteration: iterations, time: elapsed})
-	// fmt.Println("done")
 
 }

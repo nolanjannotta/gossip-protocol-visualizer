@@ -28,16 +28,21 @@ type styles struct {
 	directionStyle lipgloss.Style
 }
 
+// come back to this
+// type inputs struct {
+// 	nodeCount textinput.Model
+// 	spread    textinput.Model
+// }
+
 type model struct {
-	width         int
-	height        int
-	paramsDisplay string
-	inputs        []textinput.Model
-	programStep   int
-	directions    []string
-	screenOutput  string
-	simulation    Simulation
-	styles        styles
+	width        int
+	height       int
+	inputs       []textinput.Model
+	programStep  int
+	directions   []string
+	screenOutput string
+	simulation   Simulation
+	styles       styles
 }
 
 var program = tea.Program{}
@@ -45,7 +50,6 @@ var program = tea.Program{}
 func main() {
 
 	m := model{
-		// border: lipgloss.NewStyle(),
 		inputs: make([]textinput.Model, 3), // 1. amount of nodes, 2. successRate, 3. sendsPerNode
 		directions: []string{
 			"> press enter to start new simulation",
@@ -97,7 +101,6 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RelayMsg:
 		for _, coord := range msg.coords {
-			// m.simulation.pixelMap[coord] = green(m.simulation.pixelMap[coord])
 			m.simulation.pixelMap[coord] = "⬤"
 
 		}
@@ -206,11 +209,9 @@ func (m *model) updateProgramStep() tea.Cmd {
 		m.loadBlankScreen()
 		m.loadNodes()
 		m.drawPixels()
-		// fmt.Println("after drawing", m.simulation.nodes)
 		return cmd
 	}
 	if m.programStep == simulationRunning {
-		// fmt.Println("before running", m.simulation.nodes)
 		go m.simulation.run(&program)
 
 		return cmd
@@ -321,15 +322,10 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) {
 		Align(lipgloss.Left).
 		Width(m.width / 8).
 		Height(1)
-		// MarginLeft(1)
 
 	m.styles.directionStyle = lipgloss.NewStyle().
 		Width(m.width / 2).
 		MarginLeft(4)
-	// Background(lipgloss.Color("34"))
-
-	// m.subcontainer = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Width(m.width - 5).Height(m.height - 4).Align(lipgloss.Center).Background(lipgloss.Color("123"))
-
 }
 
 func (m model) View() string {
@@ -345,6 +341,5 @@ func (m model) View() string {
 		m.styles.nodesStyle.Render(m.screenOutput),
 		m.styles.controls.Render(ctrl),
 	)
-	// return ""
 
 }
