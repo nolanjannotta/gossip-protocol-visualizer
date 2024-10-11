@@ -23,18 +23,40 @@ type Simulation struct {
 	height         int
 	width          int
 	successRate    int
-	spread         int // rename to "spread"
+	spread         int
 }
 
 type RelayMsg struct {
 	status bool
 	coords [][2]int
+	// coord  [2]int
 }
 
 type SimulationStatus struct {
 	done      bool
 	iteration int
 	time      time.Duration
+}
+type nodeIds []int
+
+func (n nodeIds) sortByDistance(nodeId int, nodes []Node) {
+	slices.SortFunc(n,
+		func(a, b int) int {
+			x, y := nodes[nodeId].x, nodes[nodeId].y
+
+			x1, y1 := nodes[a].x, nodes[a].y
+			x2, y2 := nodes[b].x, nodes[b].y
+
+			distance1 := math.Sqrt(math.Pow(float64(x1-x), 2) + math.Pow(float64(y1-y), 2))
+			distance2 := math.Sqrt(math.Pow(float64(x2-x), 2) + math.Pow(float64(y2-y), 2))
+
+			return cmp.Compare(distance1, distance2)
+
+		})
+}
+
+func (n nodeIds) removeAt(index int) nodeIds {
+	return append(n[:index], n[index+1:]...)
 }
 
 func (s *Simulation) run(p *tea.Program) {
@@ -44,7 +66,8 @@ func (s *Simulation) run(p *tea.Program) {
 	}
 
 	var coords [][2]int
-	var nodeIds []int
+	var nodeIds nodeIds
+
 	var currentIteration []int
 	var lastIteration []int
 
@@ -57,55 +80,48 @@ func (s *Simulation) run(p *tea.Program) {
 	done := false
 	var iterations int
 	start := time.Now()
+
 	for !done {
-
+		// fmt.Println(lastIteration)
 		for _, nodeId := range lastIteration {
+			if done {
+				break
+			}
 
-			slices.SortFunc(nodeIds,
-				func(a, b int) int {
-					x, y := s.nodes[nodeId].x, s.nodes[nodeId].y
+			nodeIds.sortByDistance(nodeId, s.nodes)
 
-					x1, y1 := s.nodes[a].x, s.nodes[a].y
-					x2, y2 := s.nodes[b].x, s.nodes[b].y
-
-					distance1 := math.Sqrt(math.Pow(float64(x1-x), 2) + math.Pow(float64(y1-y), 2))
-					distance2 := math.Sqrt(math.Pow(float64(x2-x), 2) + math.Pow(float64(y2-y), 2))
-
-					return cmp.Compare(distance1, distance2)
-
-				})
-			var recipient int
 			for range s.spread {
 				if len(s.completedNodes) >= len(s.nodes) {
+					elapsed := time.Since(start)
+					// fmt.Println("done")
+					p.Send(SimulationStatus{done: true, iteration: iterations, time: elapsed})
 					done = true
 					break
 				}
 
 				for i, id := range nodeIds {
 					if !slices.Contains(s.completedNodes, id) {
-						recipient = id
-						nodeIds = append(nodeIds[:i], nodeIds[i+1:]...)
+						coord := [2]int{s.nodes[id].x, s.nodes[id].y}
+						coords = append(coords, coord)
+						currentIteration = append(currentIteration, id)
+						s.completedNodes = append(s.completedNodes, id)
+						nodeIds = nodeIds.removeAt(i)
 						break
 					}
 				}
 
-				coord := [2]int{s.nodes[recipient].x, s.nodes[recipient].y}
-				coords = append(coords, coord)
-				currentIteration = append(currentIteration, recipient)
-
 			}
+			p.Send(RelayMsg{status: true, coords: coords})
 
 		}
 
-		s.completedNodes = append(s.completedNodes, currentIteration...)
+		// s.completedNodes = append(s.completedNodes, currentIteration...)
 		lastIteration = currentIteration
-		currentIteration = []int{}
+		currentIteration = nil
 		iterations++
-		p.Send(RelayMsg{status: true, coords: coords})
-		coords = [][2]int{}
+		// p.Send(RelayMsg{status: true, coords: coords}) // calling this here makes it faster but look less cool
+		coords = nil
 
 	}
-	elapsed := time.Since(start)
-	p.Send(SimulationStatus{done: true, iteration: iterations, time: elapsed})
 
 }

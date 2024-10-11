@@ -94,7 +94,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
 	case SimulationStatus:
 		if msg.done {
-			m.directions = append(m.directions, fmt.Sprintf("> simulation finished in %d iterations and took %s seconds", msg.iteration, msg.time))
+			m.directions = append(m.directions, fmt.Sprintf("> simulation finished in %d iterations and took %s", msg.iteration, msg.time))
 			m.programStep++
 
 		}
