@@ -82,6 +82,7 @@ func (s *Simulation) run(p *tea.Program) {
 	start := time.Now()
 
 	for !done {
+		iterations++
 		// fmt.Println(lastIteration)
 		for _, nodeId := range lastIteration {
 			if done {
@@ -93,7 +94,6 @@ func (s *Simulation) run(p *tea.Program) {
 			for range s.spread {
 				if len(s.completedNodes) >= len(s.nodes) {
 					elapsed := time.Since(start)
-					// fmt.Println("done")
 					p.Send(SimulationStatus{done: true, iteration: iterations, time: elapsed})
 					done = true
 					break
@@ -115,10 +115,9 @@ func (s *Simulation) run(p *tea.Program) {
 
 		}
 
-		// s.completedNodes = append(s.completedNodes, currentIteration...)
 		lastIteration = currentIteration
 		currentIteration = nil
-		iterations++
+
 		// p.Send(RelayMsg{status: true, coords: coords}) // calling this here makes it faster but look less cool
 		coords = nil
 
