@@ -22,17 +22,15 @@ type Simulation struct {
 	isLoaded       bool
 	height         int
 	width          int
-	successRate    int
 	spread         int
 }
 
 type RelayMsg struct {
 	status bool
 	coords [][2]int
-	// coord  [2]int
 }
 
-type SimulationStatus struct {
+type SimulationStatusMsg struct {
 	done      bool
 	iteration int
 	time      time.Duration
@@ -83,7 +81,6 @@ func (s *Simulation) run(p *tea.Program) {
 
 	for !done {
 		iterations++
-		// fmt.Println(lastIteration)
 		for _, nodeId := range lastIteration {
 			if done {
 				break
@@ -94,7 +91,7 @@ func (s *Simulation) run(p *tea.Program) {
 			for range s.spread {
 				if len(s.completedNodes) >= len(s.nodes) {
 					elapsed := time.Since(start)
-					p.Send(SimulationStatus{done: true, iteration: iterations, time: elapsed})
+					p.Send(SimulationStatusMsg{done: true, iteration: iterations, time: elapsed})
 					done = true
 					break
 				}

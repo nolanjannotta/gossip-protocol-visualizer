@@ -14,8 +14,7 @@ import (
 const (
 	start = iota
 	nodeAmountInput
-	successRateInput
-	sendsPerNodeInput
+	spreadInput
 	chooseStartingNode
 	simulationRunning
 )
@@ -28,21 +27,17 @@ type styles struct {
 	directionStyle lipgloss.Style
 }
 
-// come back to this
-// type inputs struct {
-// 	nodeCount textinput.Model
-// 	spread    textinput.Model
-// }
-
 type model struct {
 	width        int
 	height       int
 	inputs       []textinput.Model
 	programStep  int
 	directions   []string
+	extraMessage string
 	screenOutput string
 	simulation   Simulation
 	styles       styles
+	hasError     bool
 }
 
 var program = tea.Program{}
@@ -50,14 +45,13 @@ var program = tea.Program{}
 func main() {
 
 	m := model{
-		inputs: make([]textinput.Model, 3), // 1. amount of nodes, 2. successRate, 3. sendsPerNode
+		inputs: make([]textinput.Model, 2), // 1. amount of nodes, 2. sendsPerNode
 		directions: []string{
-			"> press enter to start new simulation",
-			"> choose the number of nodes",
-			"> choose the success rate of messages",
-			"> choose the amount of messages a node sends. then press enter to load simulation.",
-			"> simulation loaded.\n> Click on a starting node",
-			"> simulation is running"},
+			"> press enter to start new simulation.\n> press ctrl+c to quit.",
+			"> choose the number of nodes.\n> the press enter",
+			"> choose the spread amount.\n>  press enter to load simulation. press ctrl+z for previous input.",
+			"> simulation loaded.\n> Click on a starting node, then press enter to start simulation.",
+			"> simulation is running..."},
 		programStep: 0,
 	}
 	m.styles.border = lipgloss.NewStyle()
@@ -65,18 +59,13 @@ func main() {
 
 	m.inputs[0] = textinput.New()
 	m.inputs[1] = textinput.New()
-	m.inputs[2] = textinput.New()
 
 	m.inputs[0].Placeholder = "Number of nodes"
-	m.inputs[1].Placeholder = "success rate %"
-	m.inputs[2].Placeholder = "sends per node"
-
-	// m.simulation.startingNode = -1
+	m.inputs[1].Placeholder = "spread"
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	program = *p
-	// m.p = p
 
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
@@ -92,9 +81,11 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := message.(type) {
-	case SimulationStatus:
+	case SimulationStatusMsg:
 		if msg.done {
-			m.directions = append(m.directions, fmt.Sprintf("> simulation finished in %d iterations and took %s", msg.iteration, msg.time))
+
+			m.extraMessage = fmt.Sprintf("> simulation finished in %d iterations and took %s. \n> press ctrl+x to reset.", msg.iteration, msg.time)
+			// m.directions = append(m.directions, fmt.Sprintf("> simulation finished in %d iterations and took %s. \n> press ctrl+x to reset.", msg.iteration, msg.time))
 			m.programStep++
 
 		}
@@ -142,7 +133,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			m.simulation.pixelMap[key] = "⬤" //green(char)
+			m.simulation.pixelMap[key] = "⬤"
 			m.simulation.completedNodes = append(m.simulation.completedNodes, m.simulation.nodeMap[key])
 
 			// m.simulation.startingNode = m.simulation.nodeMap[key]
@@ -173,16 +164,13 @@ func (m *model) updateInputs(message tea.Msg) tea.Cmd {
 	}
 
 	nodes, _ := strconv.Atoi(m.inputs[0].Value())
-	success, _ := strconv.Atoi(m.inputs[1].Value())
-	spread, _ := strconv.Atoi(m.inputs[2].Value())
+	spread, _ := strconv.Atoi(m.inputs[1].Value())
 
-	if success > 100 {
-		m.inputs[1].SetValue("100")
-		success = 100
-	}
-	// m.simulation.nodes = make([]Node, nodes)
+	// if nodes < 2 && m.programStep == nodeAmountInput {
+	// 	m.extraMessage = "> please add 1 or more nodes. \n> ctrl+z to go back."
+	// }
+
 	m.simulation.nodeCount = nodes
-	m.simulation.successRate = success
 	m.simulation.spread = spread
 
 	for i := range m.inputs {
@@ -205,7 +193,7 @@ func (m *model) updateProgramStep() tea.Cmd {
 
 	}
 	if m.programStep == chooseStartingNode {
-		m.inputs[2].Blur()
+		m.inputs[1].Blur()
 		m.loadBlankScreen()
 		m.loadNodes()
 		m.drawPixels()
@@ -225,11 +213,11 @@ func (m *model) reset() tea.Cmd {
 
 	m.programStep = 1
 	m.screenOutput = ""
-	m.directions = m.directions[:6]
+	m.extraMessage = ""
+	m.hasError = false
 	m.simulation = Simulation{}
 	m.inputs[0].Reset()
 	m.inputs[1].Reset()
-	m.inputs[2].Reset()
 
 	for i := 0; i < len(m.inputs); i++ {
 		if i == m.programStep-1 { // program steps start at 1
@@ -245,6 +233,9 @@ func (m *model) reset() tea.Cmd {
 }
 
 func (m *model) drawPixels() {
+	if m.hasError {
+		return
+	}
 	m.screenOutput = ""
 
 	for y := 0; y < m.simulation.height; y++ {
@@ -260,13 +251,23 @@ func (m *model) drawPixels() {
 }
 
 func (m *model) loadBlankScreen() {
+	if m.hasError {
+		return
+	}
+
 	m.simulation.pixelMap = make(map[[2]int]string)
 
 	m.simulation.height = m.styles.nodesStyle.GetHeight()
 	m.simulation.width = m.styles.nodesStyle.GetWidth()
 
-	for x := 0; x < m.simulation.width; x++ {
-		for y := 0; y < m.simulation.height; y++ {
+	max := m.simulation.height * m.simulation.width
+	if m.simulation.nodeCount > max {
+		m.extraMessage = fmt.Sprintf("> too many nodes. Please enter %d or less\n> press ctrl+x", max)
+		m.hasError = true
+		return
+	}
+	for y := 0; y < m.simulation.height; y++ {
+		for x := 0; x < m.simulation.width; x++ {
 			m.simulation.pixelMap[[2]int{x, y}] = " "
 		}
 	}
@@ -274,6 +275,9 @@ func (m *model) loadBlankScreen() {
 }
 
 func (m *model) loadNodes() {
+	if m.hasError {
+		return
+	}
 	m.simulation.nodes = make([]Node, m.simulation.nodeCount)
 	m.simulation.nodeMap = make(map[[2]int]int)
 	if m.simulation.isLoaded {
@@ -283,13 +287,21 @@ func (m *model) loadNodes() {
 	for i := range m.simulation.nodes {
 		x := rand.Int() % (m.simulation.width - 1)
 		y := rand.Int() % (m.simulation.height)
+
+		pixel := [2]int{x, y}
+		for m.simulation.pixelMap[pixel] == "◯" {
+			x = rand.Int() % (m.simulation.width - 1)
+			y = rand.Int() % (m.simulation.height)
+			pixel = [2]int{x, y}
+
+		}
 		node := Node{
 			x: x,
 			y: y,
 		}
-		m.simulation.pixelMap[[2]int{x, y}] = "◯"
+		m.simulation.pixelMap[pixel] = "◯"
 		m.simulation.nodes[i] = node
-		m.simulation.nodeMap[[2]int{x, y}] = i
+		m.simulation.nodeMap[pixel] = i
 
 	}
 	m.simulation.isLoaded = true
@@ -330,11 +342,17 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) {
 
 func (m model) View() string {
 
+	var message string
+	if m.extraMessage == "" {
+		message = m.directions[m.programStep]
+	} else {
+		message = m.extraMessage
+	}
+
 	ctrl := lipgloss.JoinHorizontal(lipgloss.Center,
 		m.styles.inputStyle.Render(m.inputs[0].View()),
 		m.styles.inputStyle.Render(m.inputs[1].View()),
-		m.styles.inputStyle.Render(m.inputs[2].View()),
-		m.styles.directionStyle.Render(m.directions[m.programStep]),
+		m.styles.directionStyle.Render(message),
 	)
 
 	return m.styles.border.Render(
@@ -342,4 +360,10 @@ func (m model) View() string {
 		m.styles.controls.Render(ctrl),
 	)
 
+}
+
+func (m *model) willError() {
+	if m.hasError {
+		return
+	}
 }
