@@ -285,12 +285,12 @@ func (m *model) loadNodes() {
 	}
 
 	for i := range m.simulation.nodes {
-		x := rand.Int() % (m.simulation.width - 1)
+		x := rand.Int() % (m.simulation.width)
 		y := rand.Int() % (m.simulation.height)
 
 		pixel := [2]int{x, y}
 		for m.simulation.pixelMap[pixel] == "◯" {
-			x = rand.Int() % (m.simulation.width - 1)
+			x = rand.Int() % (m.simulation.width)
 			y = rand.Int() % (m.simulation.height)
 			pixel = [2]int{x, y}
 
