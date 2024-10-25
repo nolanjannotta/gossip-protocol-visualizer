@@ -110,7 +110,7 @@ func (p *program) programHandler(s ssh.Session) *tea.Program {
 	m.program = p
 	m.initializeModel()
 
-	p.program = tea.NewProgram(m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithOutput(s), tea.WithInput(s)}...)
+	p.program = tea.NewProgram(m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithReportFocus(), tea.WithOutput(s), tea.WithInput(s)}...)
 
 	return p.program
 
