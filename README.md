@@ -1,1 +1,1 @@
-An exploration and visualization of gossip protocols. working, entering the refactoring phase.
+An exploration and visualization of gossip protocols.
