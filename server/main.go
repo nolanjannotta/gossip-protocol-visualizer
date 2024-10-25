@@ -59,14 +59,11 @@ const (
 
 func main() {
 	program := program{}
-	// p := tea.Program{}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
 	}
-
-	// a := new(app)
 
 	s, err := wish.NewServer(
 		wish.WithAddress(net.JoinHostPort(host, port)),

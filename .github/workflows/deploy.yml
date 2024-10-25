@@ -1,0 +1,50 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@main
+
+    - name: 'Login to GitHub Container Registry'
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{github.actor}}
+        password: ${{secrets.GHCR_TOKEN}}
+    - name: 'Build Inventory Image'
+      run: |
+        docker build ./server --file Dockerfile --tag ghcr.io/${{github.actor}}/gossip:latest
+        docker push ghcr.io/${{github.actor}}/gossip:latest
+
+    - name: "Deploy to EC2 Instance"
+      uses: peterkimzz/aws-ssm-send-command@v1.1.1
+      with:
+        # AWS access key id
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        # AWS secret access key
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        # Where EC2 instance is
+        aws-region: ${{ secrets.AWS_REGION }}
+        # AWS EC2 Instance id or ids
+        instance-ids: ${{ secrets.AWS_INSTANCE_ID }}
+        # Command execution location
+        # !!! The line below may vary depending on where your docker-compose file is located.
+        working-directory: /home/ubuntu
+        # Bash commands you want to execute
+        command: |
+          
+          sudo docker stop $(sudo docker container ls -q --filter ancestor=ghcr.io/${{github.actor}}/gossip)
+          sudo docker rmi ghcr.io/${{github.actor}}/gossip:latest -f
+
+          sudo docker pull ghcr.io/${{github.actor}}/gossip:latest
+          sudo docker run -p 2224:2224 -v /home/ubuntu/.ssh/gossip/:/root/.ssh/ -d ghcr.io/${{github.actor}}/gossip
+        # Comment for Send-Command
+        comment: hello this is a comment
