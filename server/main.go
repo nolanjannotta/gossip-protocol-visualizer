@@ -36,7 +36,7 @@ type styles struct {
 }
 
 type model struct {
-	program
+	*program
 	renderer                   *lipgloss.Renderer
 	term                       ssh.Pty
 	width, height, programStep int
@@ -49,12 +49,12 @@ type model struct {
 }
 
 type program struct {
-	*tea.Program
+	program *tea.Program
 }
 
 const (
 	host = "0.0.0.0"
-	port = "23235"
+	port = "2224"
 )
 
 func main() {
@@ -103,7 +103,7 @@ func main() {
 
 }
 
-func (p program) programHandler(s ssh.Session) *tea.Program {
+func (p *program) programHandler(s ssh.Session) *tea.Program {
 	pty, _, _ := s.Pty()
 	renderer := bubbletea.MakeRenderer(s)
 
@@ -111,12 +111,11 @@ func (p program) programHandler(s ssh.Session) *tea.Program {
 	m.term = pty
 	m.renderer = renderer
 	m.program = p
-
 	m.initializeModel()
 
-	// p := tea.NewProgram(m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(s), tea.WithInput(s)}...)
-	p.Program = tea.NewProgram(m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(s), tea.WithInput(s)}...)
-	return p.Program
+	p.program = tea.NewProgram(m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(s), tea.WithInput(s)}...)
+
+	return p.program
 
 }
 
@@ -267,7 +266,7 @@ func (m *model) updateProgramStep() tea.Cmd {
 		return cmd
 	}
 	if m.programStep == simulationRunning {
-		go m.simulation.run(m.program.Program)
+		go m.simulation.run(m.program.program)
 
 		return cmd
 	}
