@@ -21,7 +21,7 @@ jobs:
         password: ${{secrets.GHCR_TOKEN}}
     - name: 'Build Inventory Image'
       run: |
-        docker build ./server --file Dockerfile --tag ghcr.io/${{github.actor}}/gossip:latest
+        docker build ./server -t ghcr.io/${{github.actor}}/gossip:latest
         docker push ghcr.io/${{github.actor}}/gossip:latest
 
     - name: "Deploy to EC2 Instance"
