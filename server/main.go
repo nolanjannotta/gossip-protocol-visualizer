@@ -138,7 +138,7 @@ func (m *model) initializeModel() {
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
