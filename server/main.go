@@ -168,15 +168,19 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "enter", "ctrl+z":
-			if m.programStep >= start && m.programStep <= len(m.inputs) {
-				if msg.String() == "ctrl+z" {
-					m.programStep--
-				}
+			if m.programStep >= start && m.programStep <= len(m.inputs) && msg.String() == "ctrl+z" {
+				m.programStep--
 			}
 			if msg.String() == "enter" && m.programStep < simulationRunning {
 				m.programStep++
 
 			}
+			nodes, _ := strconv.Atoi(m.inputs[0].Value())
+			spread, _ := strconv.Atoi(m.inputs[1].Value())
+
+			m.simulation.nodeCount = nodes
+			m.simulation.spread = spread
+
 			cmds = append(cmds, m.updateProgramStep())
 
 		case "ctrl+x":
@@ -209,32 +213,13 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleResize(msg)
 
 	}
-	// this handles the curser blinking
+	// this handles the curser blinking, except in wish server?
 	cmds = append(cmds, m.updateInputs(message))
 	return m, tea.Batch(cmds...)
 }
 
 func (m *model) updateInputs(message tea.Msg) tea.Cmd {
 	cmds := make([]tea.Cmd, len(m.inputs))
-
-	switch msg := message.(type) {
-	case tea.KeyMsg:
-		_, err := strconv.Atoi(msg.String())
-		if err != nil && msg.String() != "backspace" {
-			return tea.Batch(cmds...)
-		}
-
-	}
-
-	nodes, _ := strconv.Atoi(m.inputs[0].Value())
-	spread, _ := strconv.Atoi(m.inputs[1].Value())
-
-	// if nodes < 2 && m.programStep == nodeAmountInput {
-	// 	m.extraMessage = "> please add 1 or more nodes. \n> ctrl+z to go back."
-	// }
-
-	m.simulation.nodeCount = nodes
-	m.simulation.spread = spread
 
 	for i := range m.inputs {
 
