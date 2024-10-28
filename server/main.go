@@ -70,7 +70,6 @@ func main() {
 		wish.WithHostKeyPath(fmt.Sprint(home, "/.ssh/gossip")),
 		wish.WithMiddleware(
 			bubbletea.MiddlewareWithProgramHandler(program.programHandler, termenv.ANSI256),
-			// bubbletea.Middleware(teaHandler),
 			activeterm.Middleware(), // Bubble Tea apps usually require a PTY.
 			logging.Middleware(),
 		),
@@ -132,6 +131,9 @@ func (m *model) initializeModel() {
 
 	m.inputs[0] = textinput.New()
 	m.inputs[1] = textinput.New()
+
+	m.inputs[0].Cursor.Style = m.renderer.NewStyle().Background(lipgloss.AdaptiveColor{Light: "255", Dark: "0"})
+	m.inputs[1].Cursor.Style = m.renderer.NewStyle().Background(lipgloss.AdaptiveColor{Light: "255", Dark: "0"})
 
 	m.inputs[0].Placeholder = "Number of nodes"
 	m.inputs[1].Placeholder = "spread"
