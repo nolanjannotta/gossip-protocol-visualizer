@@ -134,7 +134,8 @@ func (m *model) initializeModel() {
 
 	m.inputs[0].Cursor.Style = m.renderer.NewStyle().Background(lipgloss.AdaptiveColor{Light: "255", Dark: "0"})
 	m.inputs[1].Cursor.Style = m.renderer.NewStyle().Background(lipgloss.AdaptiveColor{Light: "255", Dark: "0"})
-
+	m.inputs[0].PlaceholderStyle = m.renderer.NewStyle().Foreground(lipgloss.Color("240"))
+	m.inputs[1].PlaceholderStyle = m.renderer.NewStyle().Foreground(lipgloss.Color("240"))
 	m.inputs[0].Placeholder = "Number of nodes"
 	m.inputs[1].Placeholder = "spread"
 }
